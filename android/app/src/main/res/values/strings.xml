@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MisAhorros</string>
+    <string name="title_activity_main">MisAhorros</string>
+    <string name="package_name">com.misahorros.app</string>
+    <string name="custom_url_scheme">com.misahorros.app</string>
+</resources>
