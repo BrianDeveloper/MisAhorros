@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { getDevicePreference, saveDevicePreference } from '@/lib/authStorage'
 
 export type CreamyTheme = 'morado-pro' | 'morado-nocturno'
 
@@ -12,6 +13,7 @@ interface ThemeContextType {
   setLargeText: (large: boolean) => void
   reduceMotion: boolean
   setReduceMotion: (reduce: boolean) => void
+  storageError: string | null
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -28,6 +30,8 @@ const themes: Array<{ value: CreamyTheme; label: string; emoji: string }> = [
 ]
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [hydrated, setHydrated] = useState(false)
+  const [storageError, setStorageError] = useState<string | null>(null)
   const [theme, setThemeState] = useState<CreamyTheme>(() => {
     if (typeof window === 'undefined') return 'morado-pro'
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -52,36 +56,63 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   })
 
   useEffect(() => {
+    let active = true
+    void Promise.all([
+      getDevicePreference(STORAGE_KEY),
+      getDevicePreference(HIDE_BALANCES_KEY),
+      getDevicePreference(LARGE_TEXT_KEY),
+      getDevicePreference(REDUCE_MOTION_KEY),
+    ]).then(([savedTheme, savedHideBalances, savedLargeText, savedReduceMotion]) => {
+      if (!active) return
+      if (savedTheme === 'morado-pro' || savedTheme === 'morado-nocturno') setThemeState(savedTheme)
+      if (savedHideBalances !== null) setHideBalancesState(savedHideBalances !== 'false')
+      if (savedLargeText !== null) setLargeTextState(savedLargeText === 'true')
+      if (savedReduceMotion !== null) setReduceMotionState(savedReduceMotion === 'true')
+    }).catch((error: unknown) => {
+      if (active) {
+        setStorageError(error instanceof Error ? error.message : 'No se pudieron leer las preferencias guardadas.')
+      }
+    }).finally(() => {
+      if (active) setHydrated(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     if (typeof document === 'undefined') return
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem(STORAGE_KEY, theme)
   }, [theme])
 
   useEffect(() => {
     document.documentElement.dataset.textSize = largeText ? 'large' : 'normal'
-    localStorage.setItem(LARGE_TEXT_KEY, String(largeText))
   }, [largeText])
 
   useEffect(() => {
     document.documentElement.dataset.reduceMotion = String(reduceMotion)
-    localStorage.setItem(REDUCE_MOTION_KEY, String(reduceMotion))
   }, [reduceMotion])
 
-  const setTheme = (newTheme: CreamyTheme) => {
-    setThemeState(newTheme)
-  }
+  useEffect(() => {
+    if (!hydrated) return
+    void Promise.all([
+      saveDevicePreference(STORAGE_KEY, theme),
+      saveDevicePreference(HIDE_BALANCES_KEY, String(hideBalances)),
+      saveDevicePreference(LARGE_TEXT_KEY, String(largeText)),
+      saveDevicePreference(REDUCE_MOTION_KEY, String(reduceMotion)),
+    ]).then(() => setStorageError(null)).catch((error: unknown) => {
+      setStorageError(error instanceof Error ? error.message : 'No se pudieron guardar las preferencias.')
+    })
+  }, [hydrated, hideBalances, largeText, reduceMotion, theme])
 
-  const setHideBalances = (hide: boolean) => {
-    setHideBalancesState(hide)
-    localStorage.setItem(HIDE_BALANCES_KEY, String(hide))
-  }
-
+  const setTheme = (newTheme: CreamyTheme) => setThemeState(newTheme)
+  const setHideBalances = (hide: boolean) => setHideBalancesState(hide)
   const setLargeText = (large: boolean) => setLargeTextState(large)
   const setReduceMotion = (reduce: boolean) => setReduceMotionState(reduce)
 
   return (
     <ThemeContext.Provider
-      value={{ theme, setTheme, themes, hideBalances, setHideBalances, largeText, setLargeText, reduceMotion, setReduceMotion }}
+      value={{ theme, setTheme, themes, hideBalances, setHideBalances, largeText, setLargeText, reduceMotion, setReduceMotion, storageError }}
     >
       {children}
     </ThemeContext.Provider>

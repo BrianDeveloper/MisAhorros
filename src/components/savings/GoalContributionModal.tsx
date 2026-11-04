@@ -93,6 +93,9 @@ export function GoalContributionModal({ open, onClose, onSaved, goal, mode }: Go
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
+            autoComplete="off"
+            aria-label="Monto"
+            required
             placeholder="0.00"
             className="text-center text-4xl font-bold bg-transparent outline-none"
             style={{ color: 'var(--color-text)' }}

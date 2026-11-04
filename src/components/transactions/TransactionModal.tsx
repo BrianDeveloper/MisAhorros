@@ -118,6 +118,9 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso', onSave
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
+            autoComplete="off"
+            aria-label="Monto"
+            aria-invalid={Boolean(error)}
             placeholder="0.00"
             className="text-center text-4xl font-bold bg-transparent outline-none"
             style={{ color: 'var(--color-text)' }}
@@ -168,6 +171,7 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso', onSave
           </label>
           <input
             maxLength={120}
+            autoComplete="off"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Agrega una nota"

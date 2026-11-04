@@ -91,6 +91,10 @@ export default function Budgets() {
       setError('Crea o selecciona una categoría de gasto antes de definir un presupuesto.')
       return
     }
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      setError('Selecciona un mes válido para el presupuesto.')
+      return
+    }
     if (!parsedAmount) {
       setError('Ingresa un límite válido mayor que cero, con hasta dos decimales.')
       return

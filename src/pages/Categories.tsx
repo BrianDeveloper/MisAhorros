@@ -219,6 +219,7 @@ export default function Categories() {
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
+              minLength={1}
               maxLength={32}
               required
               className="rounded-3xl px-3 py-2"

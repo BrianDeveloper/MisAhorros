@@ -48,12 +48,14 @@ El widget de tasa consulta la API pública de [DolarAPI para Venezuela](https://
 
 El proyecto incluye la plataforma Android de Capacitor. Después de compilar la app web, sincroniza los recursos con el proyecto nativo usando `npx cap sync android`.
 
+En Android, habilita **Acceso rápido** desde Perfil y ajustes. **Salir y bloquear con huella** cierra el acceso actual, conserva la sesión cifrada y permite volver a entrar con biometría. **Cerrar sesión y quitar acceso rápido** elimina la sesión y el perfil biométrico del dispositivo. Las preferencias de tema, privacidad y accesibilidad también se guardan en el almacenamiento seguro del dispositivo.
+
 ### Descargar una APK de prueba
 
-El workflow **Build Android APK** genera una APK debug instalable desde GitHub Actions:
+El workflow **Build Android APK** genera una APK debug instalable y la publica en GitHub Releases:
 
 1. En **Settings → Secrets and variables → Actions**, agrega los secretos `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` con la URL del proyecto Supabase y su clave pública `anon`/publishable. No agregues una clave `service_role`.
-2. Abre **Actions → Build Android APK → Run workflow**.
-3. Al finalizar la ejecución, descarga `misahorros-debug-apk` en la sección **Artifacts**.
+2. Abre **Actions → Build Android APK → Run workflow** y elige una etiqueta de release nueva (por ejemplo, `v1.0.9`).
+3. Al finalizar la ejecución, descarga la APK desde **Releases**. También queda disponible como el artefacto `misahorros-debug-apk` durante 30 días.
 
-Esta APK está firmada con la clave debug de Android y es solo para pruebas; no debe distribuirse como versión de producción. Cada ejecución conserva el artefacto durante 30 días.
+Esta APK está firmada con la clave debug de Android y es solo para pruebas; no debe distribuirse como versión de producción.

@@ -2,9 +2,15 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to publish (for example v1.0.9)
+        required: true
+        default: v1.0.9
+        type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -61,3 +67,15 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "android/app/build/outputs/apk/debug/app-debug.apk#MisAhorros-${RELEASE_TAG}.apk" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "MisAhorros $RELEASE_TAG" \
+            --notes "APK debug de prueba. Instalable para validar la versión; no usar como distribución de producción."

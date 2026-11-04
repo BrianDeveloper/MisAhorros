@@ -14,7 +14,7 @@ export function parsePositiveAmount(value: string): number | null {
   const normalized = value.trim().replace(',', '.')
   if (!/^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(normalized)) return null
   const amount = Number(normalized)
-  return Number.isFinite(amount) && amount > 0 ? amount : null
+  return Number.isFinite(amount) && amount > 0 && amount <= 999_999_999_999.99 ? amount : null
 }
 
 export function formatShortDate(value: string): string {

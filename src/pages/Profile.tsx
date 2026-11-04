@@ -12,6 +12,7 @@ import type { AvatarIcon } from '@/context/UserDisplayContext'
 import { Cat, Coffee, Fingerprint, Heart, ImagePlus, PiggyBank, Smile, Star, Trash2, UserRound } from 'lucide-react'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { SettingSwitch } from '@/components/ui/SettingSwitch'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 const avatarOptions: Array<{ value: AvatarIcon; label: string; Icon: typeof UserRound }> = [
   { value: 'UserRound', label: 'Persona', Icon: UserRound },
@@ -45,11 +46,11 @@ async function prepareAvatar(file: File): Promise<string> {
 
 export default function Profile() {
   const {
-    user, signOut, isNative, rememberedAccount, enableBiometrics, disableBiometrics,
+    user, signOut, removeBiometricAndSignOut, isNative, rememberedAccount, enableBiometrics, disableBiometrics,
   } = useAuth()
   const {
     theme, setTheme, themes, hideBalances, setHideBalances,
-    largeText, setLargeText, reduceMotion, setReduceMotion,
+    largeText, setLargeText, reduceMotion, setReduceMotion, storageError: themeStorageError,
   } = useTheme()
   const { profile, loading, error: profileError, fetchProfile } = useWallet()
   const {
@@ -59,6 +60,7 @@ export default function Profile() {
     setAvatarIcon,
     avatarImage,
     setAvatarImage,
+    storageError: displayStorageError,
   } = useUserDisplay()
   const navigate = useNavigate()
   const [currencyError, setCurrencyError] = useState<string | null>(null)
@@ -103,6 +105,10 @@ export default function Profile() {
       setPasswordError('La contraseña debe tener al menos 8 caracteres.')
       return
     }
+    if (password.length > 72) {
+      setPasswordError('La contraseña no puede superar los 72 caracteres.')
+      return
+    }
     if (password !== passwordConfirmation) {
       setPasswordError('Las contraseñas no coinciden.')
       return
@@ -122,6 +128,15 @@ export default function Profile() {
 
   const handleSignOut = async () => {
     const { error } = await signOut()
+    if (error) {
+      setSignOutError(error.message)
+      return
+    }
+    navigate('/login', { replace: true })
+  }
+
+  const handleRemoveQuickAccess = async () => {
+    const { error } = await removeBiometricAndSignOut()
     if (error) {
       setSignOutError(error.message)
       return
@@ -153,23 +168,49 @@ export default function Profile() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-bold">Perfil y ajustes</h1>
-          <button
-            type="button"
-            onClick={() => void handleSignOut()}
-            className="shrink-0 rounded-3xl px-4 py-2.5 text-sm font-bold"
-            style={{ background: '#b91c1c', color: '#ffffff' }}
-          >
-            Cerrar sesión
-          </button>
+          {isNative && rememberedAccount?.userId === user?.id ? (
+            <button
+              type="button"
+              onClick={() => void handleSignOut()}
+              className="shrink-0 rounded-3xl px-4 py-2.5 text-sm font-bold"
+              style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
+            >
+              Salir y bloquear con huella
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleSignOut()}
+              className="shrink-0 rounded-3xl px-4 py-2.5 text-sm font-bold"
+              style={{ background: '#b91c1c', color: '#ffffff' }}
+            >
+              Cerrar sesión
+            </button>
+          )}
         </div>
 
         <section className="card-cream flex flex-col gap-2 p-4" aria-label="Información de la cuenta">
           <p className="text-sm break-all">{user?.email || 'Correo no disponible'}</p>
           <p className="text-sm opacity-80">Saldo actual: {hideBalances ? '******' : formatCurrency(profile?.balance_actual ?? 0, currency)}</p>
           {signOutError && <p role="alert" className="text-sm text-red-600">{signOutError}</p>}
+          {themeStorageError && <p role="alert" className="text-sm text-red-600">No se guardaron las preferencias de la app: {themeStorageError}</p>}
+          {displayStorageError && <p role="alert" className="text-sm text-red-600">No se guardó la personalización del perfil: {displayStorageError}</p>}
           {profileError && <p role="alert" className="text-sm text-red-600">{profileError}</p>}
           {!loading && !profile && !profileError && (
             <p role="alert" className="text-sm text-red-600">No se encontró el perfil de finanzas para esta cuenta.</p>
+          )}
+          {isNative && rememberedAccount?.userId === user?.id && (
+            <>
+              <p className="text-xs opacity-75">“Salir y bloquear con huella” mantiene la sesión cifrada en este dispositivo para volver a entrar con biometría.</p>
+              <button
+                type="button"
+                onClick={() => void handleRemoveQuickAccess()}
+                className="self-start rounded-2xl px-3 py-2 text-sm font-semibold"
+                style={{ background: 'var(--color-surface)', color: 'var(--color-text)' }}
+              >
+                Cerrar sesión y quitar acceso rápido
+              </button>
+            </>
           )}
         </section>
 
@@ -321,10 +362,10 @@ export default function Profile() {
           <form onSubmit={handlePasswordChange} className="flex flex-col gap-3">
             <label className="text-sm flex flex-col gap-2">
               Nueva contraseña
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="new-password"
                 minLength={8}
+                maxLength={72}
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -334,10 +375,10 @@ export default function Profile() {
             </label>
             <label className="text-sm flex flex-col gap-2">
               Confirmar contraseña
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="new-password"
                 minLength={8}
+                maxLength={72}
                 required
                 value={passwordConfirmation}
                 onChange={(event) => setPasswordConfirmation(event.target.value)}

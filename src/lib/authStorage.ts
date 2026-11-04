@@ -37,6 +37,45 @@ export interface RememberedBiometricAccount {
 
 const accountKey = 'biometric-account'
 
+export async function getDevicePreference(key: string): Promise<string | null> {
+  if (!isNative) return localStorage.getItem(key)
+  await storageReady
+  const value = await SecureStorage.getItem(`preference:${key}`)
+  if (value !== null) return value
+
+  const legacyValue = localStorage.getItem(key)
+  if (legacyValue !== null) await SecureStorage.setItem(`preference:${key}`, legacyValue)
+  return legacyValue
+}
+
+export async function saveDevicePreference(key: string, value: string): Promise<void> {
+  if (!isNative) {
+    localStorage.setItem(key, value)
+    return
+  }
+  await storageReady
+  await SecureStorage.setItem(`preference:${key}`, value)
+}
+
+export async function hasPersistedAuthSession(): Promise<boolean> {
+  if (!isNative) return false
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  if (!supabaseUrl) throw new Error('Falta configurar la URL de Supabase.')
+  const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
+  const stored = await supabaseAuthStorage.getItem(`sb-${projectRef}-auth-token`)
+  if (!stored) return false
+
+  const session: unknown = JSON.parse(stored)
+  return (
+    typeof session === 'object'
+    && session !== null
+    && 'access_token' in session
+    && typeof session.access_token === 'string'
+    && 'refresh_token' in session
+    && typeof session.refresh_token === 'string'
+  )
+}
+
 export async function getRememberedBiometricAccount(): Promise<RememberedBiometricAccount | null> {
   if (!isNative) return null
   await storageReady

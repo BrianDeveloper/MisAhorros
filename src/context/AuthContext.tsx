@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient'
 import {
   clearRememberedBiometricAccount,
   getRememberedBiometricAccount,
+  hasPersistedAuthSession,
   isNativeBiometricPlatform,
   saveRememberedBiometricAccount,
 } from '@/lib/authStorage'
@@ -14,6 +15,7 @@ import type { RememberedBiometricAccount } from '@/lib/authStorage'
 
 interface AuthResult {
   error: Error | null
+  message?: string
 }
 
 interface AuthContextType {
@@ -27,6 +29,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<AuthResult>
   signUp: (email: string, password: string) => Promise<AuthResult>
   signOut: () => Promise<AuthResult>
+  removeBiometricAndSignOut: () => Promise<AuthResult>
+  lockSession: () => AuthResult
   enableBiometrics: () => Promise<AuthResult>
   disableBiometrics: () => Promise<AuthResult>
   unlockWithBiometrics: () => Promise<AuthResult>
@@ -48,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true
+    let initializationComplete = false
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
@@ -55,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(nextSession)
       setUser(nextSession?.user ?? null)
       if (event === 'SIGNED_OUT') setLocked(false)
+      if (initializationComplete) setLoading(false)
     })
 
     void (async () => {
@@ -82,8 +88,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRememberedAccount(remembered)
         setLocked(Boolean(isNativeBiometricPlatform && nextUser && remembered))
       } catch (error) {
-        if (mounted) setAuthError(toError(error).message)
+        if (mounted) {
+          setLocked(isNativeBiometricPlatform)
+          setAuthError(toError(error).message)
+        }
       } finally {
+        initializationComplete = true
         if (mounted) setLoading(false)
       }
     })()
@@ -126,13 +136,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loading, rememberedAccount, user])
 
   const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) return { error: new Error(error.message) }
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return { error: new Error('Ingresa un correo electrónico válido.') }
+    }
+    if (!password) return { error: new Error('Ingresa tu contraseña.') }
 
+    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password })
+    if (error) return { error: new Error(error.message) }
+    if (!data.session) return { error: new Error('No se pudo restaurar la sesión. Inténtalo nuevamente.') }
+
+    setSession(data.session)
+    setUser(data.user)
     setLocked(false)
     setAuthError(null)
     if (rememberedAccount && (
-      rememberedAccount.email.toLowerCase() !== email.trim().toLowerCase()
+      rememberedAccount.email.toLowerCase() !== normalizedEmail.toLowerCase()
       || rememberedAccount.userId !== data.user?.id
     )) {
       try {
@@ -146,6 +165,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [rememberedAccount])
 
   const signUp = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return { error: new Error('Ingresa un correo electrónico válido.') }
+    }
+    if (password.length < 8) {
+      return { error: new Error('La contraseña debe tener al menos 8 caracteres.') }
+    }
+    if (password.length > 72) {
+      return { error: new Error('La contraseña no puede superar los 72 caracteres.') }
+    }
     if (rememberedAccount) {
       try {
         await clearRememberedBiometricAccount()
@@ -154,14 +183,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: toError(error) }
       }
     }
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password })
     if (error) return { error: new Error(error.message) }
-    setLocked(false)
+    if (data.session) {
+      setSession(data.session)
+      setUser(data.user)
+      setLocked(false)
+    } else {
+      return {
+        error: null,
+        message: 'Cuenta creada. Revisa tu correo y confirma la cuenta antes de iniciar sesión.',
+      }
+    }
     setAuthError(null)
     return { error: null }
   }, [rememberedAccount])
 
   const signOut = useCallback(async (): Promise<AuthResult> => {
+    if (isNativeBiometricPlatform && rememberedAccount && user?.id === rememberedAccount.userId) {
+      setLocked(true)
+      return { error: null }
+    }
+
     const { error } = await supabase.auth.signOut()
     if (error) return { error: new Error(error.message) }
     try {
@@ -172,7 +215,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (storageError) {
       return { error: toError(storageError) }
     }
+  }, [rememberedAccount, user])
+
+  const removeBiometricAndSignOut = useCallback(async (): Promise<AuthResult> => {
+    const { error } = await supabase.auth.signOut()
+    if (error) return { error: new Error(error.message) }
+    try {
+      await clearRememberedBiometricAccount()
+      setRememberedAccount(null)
+      setLocked(false)
+      setSession(null)
+      setUser(null)
+      return { error: null }
+    } catch (storageError) {
+      return { error: toError(storageError) }
+    }
   }, [])
+
+  const lockSession = useCallback((): AuthResult => {
+    if (!isNativeBiometricPlatform || !rememberedAccount || user?.id !== rememberedAccount.userId) {
+      return { error: new Error('Activa el acceso biométrico antes de bloquear la sesión.') }
+    }
+    setLocked(true)
+    return { error: null }
+  }, [rememberedAccount, user])
 
   const enableBiometrics = useCallback(async (): Promise<AuthResult> => {
     if (!isNativeBiometricPlatform) {
@@ -191,15 +257,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         allowDeviceCredential: false,
         androidTitle: 'Acceso a MisAhorros',
       })
+      if (!session || session.user.id !== user.id) {
+        return { error: new Error('No hay una sesión activa que se pueda guardar para el acceso biométrico.') }
+      }
+      if (!await hasPersistedAuthSession()) {
+        return { error: new Error('La sesión no quedó guardada de forma segura. Inicia sesión nuevamente antes de activar la biometría.') }
+      }
       const account = { email: user.email, userId: user.id }
       await saveRememberedBiometricAccount(account)
+      const savedAccount = await getRememberedBiometricAccount()
+      if (savedAccount?.userId !== user.id || savedAccount.email !== user.email) {
+        throw new Error('No se pudo verificar el acceso biométrico guardado. Inténtalo nuevamente.')
+      }
       setRememberedAccount(account)
       setLocked(false)
       return { error: null }
     } catch (error) {
       return { error: toError(error) }
     }
-  }, [user])
+  }, [session, user])
 
   const disableBiometrics = useCallback(async (): Promise<AuthResult> => {
     try {
@@ -245,6 +321,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signUp,
       signOut,
+      removeBiometricAndSignOut,
+      lockSession,
       enableBiometrics,
       disableBiometrics,
       unlockWithBiometrics,

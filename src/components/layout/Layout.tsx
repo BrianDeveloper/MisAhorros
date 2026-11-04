@@ -40,7 +40,12 @@ export function Layout({ children }: LayoutProps) {
     >
       <header className="sticky top-0 z-20 px-4 pt-4">
         <div className="card-cream flex items-center justify-between px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
+          <Link
+            to="/perfil"
+            aria-label="Abrir perfil y ajustes"
+            className="flex min-w-0 items-center gap-3 rounded-3xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ outlineColor: 'var(--color-primary)' }}
+          >
             <div
               className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
@@ -53,7 +58,7 @@ export function Layout({ children }: LayoutProps) {
               <p className="truncate text-sm font-semibold leading-tight">¡Hola, {welcomeName}!</p>
               <p className="line-clamp-1 text-xs opacity-80 leading-tight">Bienvenido a MisAhorros</p>
             </div>
-          </div>
+          </Link>
           <div className="relative">
             <button
               onClick={() => setOpen((v) => !v)}

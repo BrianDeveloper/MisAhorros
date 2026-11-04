@@ -63,6 +63,7 @@ export function NewGoalModal({ open, onClose, onSaved }: NewGoalModalProps) {
           <span className="text-sm font-semibold">Nombre de la meta</span>
           <input
             maxLength={60}
+            required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Ej. Licuadora, Viaje..."
@@ -77,6 +78,9 @@ export function NewGoalModal({ open, onClose, onSaved }: NewGoalModalProps) {
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             inputMode="decimal"
+            autoComplete="off"
+            aria-label="Monto objetivo"
+            required
             placeholder="0.00"
             className="rounded-3xl px-4 py-2 text-lg font-semibold"
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}

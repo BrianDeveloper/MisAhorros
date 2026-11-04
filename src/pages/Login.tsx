@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { Fingerprint, UserRound } from 'lucide-react'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 export default function Login() {
   const {
@@ -11,8 +12,10 @@ export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState(rememberedAccount?.email ?? '')
   const [password, setPassword] = useState('')
+  const [passwordConfirmation, setPasswordConfirmation] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [biometricLoading, setBiometricLoading] = useState(false)
 
@@ -23,13 +26,25 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setMessage(null)
+    if (isSignUp && password !== passwordConfirmation) {
+      setError('Las contraseñas no coinciden.')
+      return
+    }
     setLoading(true)
     try {
-      const { error } = isSignUp ? await signUp(email, password) : await signIn(email, password)
+      const result = isSignUp
+        ? await signUp(email, password)
+        : await signIn(email, password)
+      const { error } = result
       if (error) {
         setError(error.message)
       } else {
-        navigate('/')
+        if (isSignUp) {
+          setMessage(result.message ?? 'Cuenta creada.')
+        } else {
+          navigate('/')
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo completar el inicio de sesión.')
@@ -44,6 +59,13 @@ export default function Login() {
     const result = await unlockWithBiometrics()
     if (result.error) setError(result.error.message)
     setBiometricLoading(false)
+  }
+
+  const toggleSignUp = () => {
+    setIsSignUp((value) => !value)
+    setPasswordConfirmation('')
+    setError(null)
+    setMessage(null)
   }
 
   return (
@@ -72,10 +94,13 @@ export default function Login() {
                 style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
               >
                 <Fingerprint size={19} />
-                {biometricLoading ? 'Verificando...' : 'Desbloquear con biometría'}
+                {biometricLoading ? 'Verificando...' : locked ? 'Desbloquear con biometría' : 'Entrar con biometría'}
               </button>
             )}
-            {user?.id !== rememberedAccount.userId && (
+            {!user && (
+              <p className="text-xs opacity-75">La sesión guardada ya no está disponible. Inicia sesión con tu contraseña para continuar.</p>
+            )}
+            {user && user.id !== rememberedAccount.userId && (
               <p className="text-xs opacity-75">Inicia sesión con tu contraseña para recuperar el acceso a esta cuenta.</p>
             )}
           </section>
@@ -91,23 +116,39 @@ export default function Login() {
             className="rounded-3xl px-4 py-2"
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
           />
-          <input
-            type="password"
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Contraseña"
             autoComplete={isSignUp ? 'new-password' : 'current-password'}
+            minLength={isSignUp ? 8 : undefined}
+            maxLength={isSignUp ? 72 : undefined}
             required
             className="rounded-3xl px-4 py-2"
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
           />
+          {isSignUp && (
+            <PasswordInput
+              value={passwordConfirmation}
+              onChange={(e) => setPasswordConfirmation(e.target.value)}
+              placeholder="Confirmar contraseña"
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={72}
+              required
+              aria-label="Confirmar contraseña"
+              className="rounded-3xl px-4 py-2"
+              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+            />
+          )}
           {authError && <p role="alert" className="text-xs text-red-500">{authError}</p>}
           {error && <p className="text-xs text-red-500">{error}</p>}
+          {message && <p role="status" className="text-xs text-green-700">{message}</p>}
           <button disabled={loading} className="rounded-3xl py-2.5 font-semibold" style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}>
             {loading ? 'Procesando...' : isSignUp ? 'Registrarse' : 'Entrar'}
           </button>
         </form>
-        <button onClick={() => setIsSignUp((v) => !v)} className="text-xs text-center opacity-80">
+        <button type="button" onClick={toggleSignUp} className="text-xs text-center opacity-80">
           {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
         </button>
       </div>
