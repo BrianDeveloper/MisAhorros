@@ -3,6 +3,10 @@ import Home from '@/pages/Home'
 import Transactions from '@/pages/Transactions'
 import Savings from '@/pages/Savings'
 import Login from '@/pages/Login'
+import Profile from '@/pages/Profile'
+import Predictions from '@/pages/Predictions'
+import Categories from '@/pages/Categories'
+import Budgets from '@/pages/Budgets'
 import { PrivateRoute } from '@/components/auth/PrivateRoute'
 
 export function AppRoutes() {
@@ -34,7 +38,39 @@ export function AppRoutes() {
             </PrivateRoute>
           }
         />
-        <Route path="/ajustes" element={<Navigate to="/" replace />} />
+        <Route
+          path="/predicciones"
+          element={
+            <PrivateRoute>
+              <Predictions />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/perfil"
+          element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/categorias"
+          element={
+            <PrivateRoute>
+              <Categories />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/presupuestos"
+          element={
+            <PrivateRoute>
+              <Budgets />
+            </PrivateRoute>
+          }
+        />
+        <Route path="/ajustes" element={<Navigate to="/perfil" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

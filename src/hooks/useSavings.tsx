@@ -30,50 +30,34 @@ export function useSavings() {
   }, [user])
 
   const createGoal = async (input: { title: string; target_amount: number; icon: string }) => {
-    if (!user) throw new Error('No user')
-    const { error } = await supabase.from('savings_goals').insert({
-      user_id: user.id,
-      title: input.title,
-      target_amount: input.target_amount,
-      current_amount: 0,
-      icon: input.icon,
-      status: 'en_progreso',
+    const { error } = await supabase.rpc('create_savings_goal', {
+      p_title: input.title,
+      p_target_amount: input.target_amount,
+      p_icon: input.icon,
     })
     if (error) throw error
     await fetchGoals()
   }
 
   const contribute = async (goalId: string, amount: number, note?: string) => {
-    if (!user) throw new Error('No user')
-    const goal = goals.find((g) => g.id === goalId)
-    if (!goal) throw new Error('Goal not found')
-    const newAmount = Number(goal.current_amount) + amount
-    const status = newAmount >= Number(goal.target_amount) ? 'completado' : 'en_progreso'
-    await supabase.from('savings_goals').update({ current_amount: newAmount, status }).eq('id', goalId).eq('user_id', user.id)
-    await supabase.from('savings_contributions').insert({
-      user_id: user.id,
-      goal_id: goalId,
-      amount,
-      note: note || null,
+    const { error } = await supabase.rpc('save_goal_contribution', {
+      p_goal_id: goalId,
+      p_amount: amount,
+      p_note: note || null,
+      p_is_withdrawal: false,
     })
+    if (error) throw error
     await fetchGoals()
   }
 
   const withdraw = async (goalId: string, amount: number, note?: string) => {
-    if (!user) throw new Error('No user')
-    const goal = goals.find((g) => g.id === goalId)
-    if (!goal) throw new Error('Goal not found')
-    const current = Number(goal.current_amount)
-    if (amount > current) throw new Error('Insufficient')
-    const newAmount = current - amount
-    const status = newAmount >= Number(goal.target_amount) ? 'completado' : 'en_progreso'
-    await supabase.from('savings_goals').update({ current_amount: newAmount, status }).eq('id', goalId).eq('user_id', user.id)
-    await supabase.from('savings_contributions').insert({
-      user_id: user.id,
-      goal_id: goalId,
-      amount: -amount,
-      note: note || 'retiro',
+    const { error } = await supabase.rpc('save_goal_contribution', {
+      p_goal_id: goalId,
+      p_amount: amount,
+      p_note: note || 'retiro',
+      p_is_withdrawal: true,
     })
+    if (error) throw error
     await fetchGoals()
   }
 

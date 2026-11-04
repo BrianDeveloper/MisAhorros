@@ -2,23 +2,27 @@ import { useState } from 'react'
 import { X, ArrowDownCircle, ArrowUpCircle, Sparkles } from 'lucide-react'
 import { useSavings } from '@/hooks/useSavings'
 import { useWallet } from '@/hooks/useTransactions'
-import { supabase } from '@/lib/supabaseClient'
-import { useAuth } from '@/context/AuthContext'
+import { parsePositiveAmount } from '@/utils/currency'
+import { useTheme } from '@/context/ThemeContext'
+import { formatPrivateCurrency } from '@/utils/privateCurrency'
 
 interface GoalContributionModalProps {
   open: boolean
   onClose: () => void
+  onSaved?: () => Promise<void> | void
   goal: any | null
   mode: 'abonar' | 'retirar'
 }
 
-export function GoalContributionModal({ open, onClose, goal, mode }: GoalContributionModalProps) {
-  const { user } = useAuth()
+export function GoalContributionModal({ open, onClose, onSaved, goal, mode }: GoalContributionModalProps) {
   const { contribute, withdraw } = useSavings()
-  const { balance, fetchProfile } = useWallet()
+  const { balance, profile, fetchProfile } = useWallet()
+  const currency = profile?.currency_preference ?? 'USD'
+  const { hideBalances } = useTheme()
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!open || !goal) return null
 
@@ -27,15 +31,17 @@ export function GoalContributionModal({ open, onClose, goal, mode }: GoalContrib
   const progress = Math.min(100, (current / target) * 100)
 
   const handleSave = async () => {
-    if (!user) return
-    const num = parseFloat(amount.replace(',', '.'))
-    if (isNaN(num) || num <= 0) return
+    const num = parsePositiveAmount(amount)
+    if (num === null) {
+      setError('Ingresa un monto mayor a cero y con máximo dos decimales.')
+      return
+    }
+    setError(null)
     setLoading(true)
     try {
       if (mode === 'abonar') {
         if (num > balance) throw new Error('Saldo insuficiente')
         await contribute(goal.id, num)
-        await supabase.from('profiles').update({ balance_actual: balance - num }).eq('user_id', user.id)
         const newCurrent = current + num
         if (newCurrent >= target && progress < 100) {
           setShowCelebration(true)
@@ -44,13 +50,13 @@ export function GoalContributionModal({ open, onClose, goal, mode }: GoalContrib
       } else {
         if (num > current) throw new Error('No hay suficiente en la meta')
         await withdraw(goal.id, num)
-        await supabase.from('profiles').update({ balance_actual: balance + num }).eq('user_id', user.id)
       }
       await fetchProfile()
+      await onSaved?.()
       setAmount('')
       onClose()
     } catch (e) {
-      console.error(e)
+      setError(e instanceof Error ? e.message : 'No se pudo actualizar la meta.')
     } finally {
       setLoading(false)
     }
@@ -77,12 +83,13 @@ export function GoalContributionModal({ open, onClose, goal, mode }: GoalContrib
         <div className="text-center">
           <p className="text-sm opacity-80">{goal.title}</p>
           <p className="text-xs opacity-70">
-            Guardado: ${current.toFixed(2)} / Objetivo: ${target.toFixed(2)}
+            Guardado: {formatPrivateCurrency(current, currency, hideBalances)} / Objetivo: {formatPrivateCurrency(target, currency, hideBalances)}
           </p>
         </div>
         <div className="flex flex-col items-center gap-1">
           <span className="text-sm opacity-80">Monto</span>
           <input
+            type="text"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
@@ -91,14 +98,17 @@ export function GoalContributionModal({ open, onClose, goal, mode }: GoalContrib
             style={{ color: 'var(--color-text)' }}
           />
           <span className="text-xs opacity-70">
-            {mode === 'abonar' ? `Saldo disponible: $${balance.toFixed(2)}` : `Disponible en meta: $${current.toFixed(2)}`}
+            {mode === 'abonar'
+              ? `Saldo disponible: ${formatPrivateCurrency(balance, currency, hideBalances)}`
+              : `Disponible en meta: ${formatPrivateCurrency(current, currency, hideBalances)}`}
           </span>
         </div>
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <button
           disabled={loading}
           onClick={handleSave}
           className="rounded-3xl py-3 font-semibold flex items-center justify-center gap-2"
-          style={{ background: mode === 'abonar' ? 'var(--color-primary)' : 'var(--color-accent)', color: 'var(--color-primary-foreground)' }}
+          style={{ background: mode === 'abonar' ? 'var(--color-primary)' : 'var(--color-accent)', color: mode === 'abonar' ? 'var(--color-primary-foreground)' : 'var(--color-text)' }}
         >
           {mode === 'abonar' ? <ArrowDownCircle size={18} /> : <ArrowUpCircle size={18} />}
           {loading ? 'Procesando...' : mode === 'abonar' ? 'Abonar' : 'Retirar'}

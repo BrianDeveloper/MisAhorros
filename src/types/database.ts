@@ -6,7 +6,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type ThemePalette = 'vainilla-melocoton' | 'matcha-crema' | 'boba-milk-tea'
+export type ThemePalette = 'morado-pro' | 'morado-nocturno'
 export type CurrencyPreference = 'USD' | 'VES'
 export type TransactionType = 'ingreso' | 'egreso'
 export type SavingsGoalStatus = 'en_progreso' | 'completado'
@@ -19,28 +19,22 @@ export interface Database {
           id: string
           user_id: string
           balance_actual: number
-          preferred_theme: string
           currency_preference: CurrencyPreference
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           balance_actual?: number
-          preferred_theme?: string
           currency_preference?: CurrencyPreference
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           balance_actual?: number
-          preferred_theme?: string
           currency_preference?: CurrencyPreference
           created_at?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -50,8 +44,8 @@ export interface Database {
           user_id: string
           name: string
           type: TransactionType
-          icon: string
-          color_tag: string
+          icon: string | null
+          color: string | null
           created_at: string
         }
         Insert: {
@@ -59,8 +53,8 @@ export interface Database {
           user_id: string
           name: string
           type: TransactionType
-          icon?: string
-          color_tag?: string
+          icon?: string | null
+          color?: string
           created_at?: string
         }
         Update: {
@@ -68,8 +62,8 @@ export interface Database {
           user_id?: string
           name?: string
           type?: TransactionType
-          icon?: string
-          color_tag?: string
+          icon?: string | null
+          color?: string | null
           created_at?: string
         }
         Relationships: []
@@ -84,7 +78,6 @@ export interface Database {
           description: string | null
           date: string
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
@@ -95,7 +88,6 @@ export interface Database {
           description?: string | null
           date?: string
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
@@ -106,7 +98,6 @@ export interface Database {
           description?: string | null
           date?: string
           created_at?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -117,10 +108,10 @@ export interface Database {
           title: string
           target_amount: number
           current_amount: number
-          icon: string
+          icon: string | null
+          deadline: string | null
           status: SavingsGoalStatus
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
@@ -128,10 +119,10 @@ export interface Database {
           title: string
           target_amount: number
           current_amount?: number
-          icon?: string
+          icon?: string | null
+          deadline?: string | null
           status?: SavingsGoalStatus
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
@@ -139,10 +130,10 @@ export interface Database {
           title?: string
           target_amount?: number
           current_amount?: number
-          icon?: string
+          icon?: string | null
+          deadline?: string | null
           status?: SavingsGoalStatus
           created_at?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -173,11 +164,66 @@ export interface Database {
         }
         Relationships: []
       }
+      budgets: {
+        Row: {
+          id: string
+          user_id: string
+          category_id: string
+          month: string
+          amount: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          category_id: string
+          month: string
+          amount: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          category_id?: string
+          month?: string
+          amount?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {}
     Functions: {
       create_default_categories: { Args: { p_user_id: string }; Returns: undefined }
       handle_new_user: { Args: Record<string, never>; Returns: unknown }
+      create_savings_goal: {
+        Args: { p_icon: string; p_target_amount: number; p_title: string }
+        Returns: string
+      }
+      create_transaction: {
+        Args: {
+          p_amount: number
+          p_category_id: string | null
+          p_date: string
+          p_description: string | null
+          p_type: TransactionType
+        }
+        Returns: string
+      }
+      delete_transaction: { Args: { p_transaction_id: string }; Returns: undefined }
+      save_goal_contribution: {
+        Args: {
+          p_amount: number
+          p_goal_id: string
+          p_is_withdrawal: boolean
+          p_note: string | null
+        }
+        Returns: string
+      }
+      update_profile_preferences: {
+        Args: { p_currency_preference: CurrencyPreference }
+        Returns: undefined
+      }
     }
     Enums: {}
     CompositeTypes: {}

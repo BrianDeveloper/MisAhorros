@@ -11,34 +11,36 @@ export function useWallet() {
   const { user } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchProfile = useCallback(async () => {
     if (!user) {
       setProfile(null)
+      setError(null)
       setLoading(false)
       return
     }
     setLoading(true)
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle()
+    if (fetchError) {
+      setError(fetchError.message)
+      setLoading(false)
+      return
+    }
+    setError(null)
     setProfile(data)
     setLoading(false)
   }, [user])
-
-  const updateBalance = async (newBalance: number) => {
-    if (!user) return
-    await supabase.from('profiles').update({ balance_actual: newBalance }).eq('user_id', user.id)
-    await fetchProfile()
-  }
 
   useEffect(() => {
     fetchProfile()
   }, [fetchProfile])
 
-  return { profile, balance: profile?.balance_actual ?? 0, loading, fetchProfile, updateBalance }
+  return { profile, balance: profile?.balance_actual ?? 0, loading, error, fetchProfile }
 }
 
 export function useTransactions() {
@@ -46,11 +48,13 @@ export function useTransactions() {
   const [transactions, setTransactions] = useState<(Transaction & { categories: Category | null })[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
     if (!user) {
       setTransactions([])
       setCategories([])
+      setError(null)
       setLoading(false)
       return
     }
@@ -64,6 +68,12 @@ export function useTransactions() {
         .order('created_at', { ascending: false }),
       supabase.from('categories').select('*').eq('user_id', user.id).order('name'),
     ])
+    if (txRes.error || catRes.error) {
+      setError(txRes.error?.message || catRes.error?.message || 'No se pudieron cargar los datos.')
+      setLoading(false)
+      return
+    }
+    setError(null)
     setTransactions((txRes.data as any) || [])
     setCategories(catRes.data || [])
     setLoading(false)
@@ -77,9 +87,12 @@ export function useTransactions() {
     date: string
   }) => {
     if (!user) throw new Error('No user')
-    const { error } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      ...input,
+    const { error } = await supabase.rpc('create_transaction', {
+      p_type: input.type,
+      p_amount: input.amount,
+      p_category_id: input.category_id,
+      p_description: input.description,
+      p_date: input.date,
     })
     if (error) throw error
     await fetchAll()
@@ -87,7 +100,8 @@ export function useTransactions() {
 
   const deleteTransaction = async (id: string) => {
     if (!user) return
-    await supabase.from('transactions').delete().eq('id', id).eq('user_id', user.id)
+    const { error } = await supabase.rpc('delete_transaction', { p_transaction_id: id })
+    if (error) throw error
     await fetchAll()
   }
 
@@ -95,5 +109,5 @@ export function useTransactions() {
     fetchAll()
   }, [fetchAll])
 
-  return { transactions, categories, loading, fetchAll, addTransaction, deleteTransaction }
+  return { transactions, categories, loading, error, fetchAll, addTransaction, deleteTransaction }
 }

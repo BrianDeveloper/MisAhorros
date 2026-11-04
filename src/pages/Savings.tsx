@@ -5,17 +5,23 @@ import { NewGoalModal } from '@/components/savings/NewGoalModal'
 import { GoalContributionModal } from '@/components/savings/GoalContributionModal'
 import { Plus, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import * as Icons from 'lucide-react'
+import { useWallet } from '@/hooks/useTransactions'
+import { useTheme } from '@/context/ThemeContext'
+import { formatPrivateCurrency } from '@/utils/privateCurrency'
 
 export default function Savings() {
-  const { goals, loading } = useSavings()
+  const { goals, loading, fetchGoals } = useSavings()
+  const { profile } = useWallet()
+  const { hideBalances } = useTheme()
+  const currency = profile?.currency_preference ?? 'USD'
   const [openNew, setOpenNew] = useState(false)
   const [openContrib, setOpenContrib] = useState(false)
   const [selected, setSelected] = useState<any>(null)
   const [mode, setMode] = useState<'abonar' | 'retirar'>('abonar')
 
-  const getIcon = (name?: string) => {
+  const getIcon = (name?: string | null) => {
     const Icon = name && (Icons as any)[name] ? (Icons as any)[name] : Icons.PiggyBank
-    return <Icon size={20} />
+    return <Icon size={22} strokeWidth={2.25} />
   }
 
   return (
@@ -44,28 +50,32 @@ export default function Savings() {
           const current = Number(goal.current_amount)
           const target = Number(goal.target_amount)
           const progress = Math.min(100, target === 0 ? 0 : (current / target) * 100)
-          const done = progress >= 100
+          const done = !hideBalances && progress >= 100
           return (
-            <div key={goal.id} className="card-cream p-4 flex flex-col gap-3">
+            <div key={goal.id} className="card-cream min-w-0 p-4 flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <div
                     className="h-10 w-10 rounded-full flex items-center justify-center"
-                    style={{ background: done ? 'var(--color-primary)' : 'var(--color-surface)', color: 'var(--color-primary-foreground)', border: '1px solid var(--color-border)' }}
+                    style={{
+                      background: 'color-mix(in srgb, var(--color-primary) 18%, var(--color-card))',
+                      color: 'var(--color-primary)',
+                      border: '1px solid color-mix(in srgb, var(--color-primary) 32%, transparent)',
+                    }}
                   >
                     {getIcon(goal.icon)}
                   </div>
-                  <div>
-                    <p className="font-semibold">{goal.title}</p>
-                    <p className="text-xs opacity-70">
-                      ${current.toFixed(2)} / ${target.toFixed(2)}
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 break-all font-semibold">{goal.title}</p>
+                    <p className="break-all text-xs opacity-70">
+                      {formatPrivateCurrency(current, currency, hideBalances)} / {formatPrivateCurrency(target, currency, hideBalances)}
                     </p>
                   </div>
                 </div>
-                <span className="text-sm font-semibold">{Math.round(progress)}%</span>
+                <span className="shrink-0 text-sm font-semibold">{hideBalances ? '***' : `${Math.round(progress)}%`}</span>
               </div>
               <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-surface)' }}>
-                <div className="h-full" style={{ width: `${progress}%`, background: done ? 'var(--color-primary)' : 'var(--color-accent)' }} />
+                <div className="h-full" style={{ width: hideBalances ? '0%' : `${progress}%`, background: done ? 'var(--color-primary)' : 'var(--color-accent)' }} />
               </div>
               <div className="flex gap-2">
                 <button
@@ -74,7 +84,7 @@ export default function Savings() {
                     setMode('abonar')
                     setOpenContrib(true)
                   }}
-                  className="flex-1 rounded-3xl py-2 text-sm flex items-center justify-center gap-2"
+                  className="flex-1 min-w-0 rounded-3xl py-2 text-xs flex items-center justify-center gap-2 sm:text-sm"
                   style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
                 >
                   <ArrowDownCircle size={16} /> Abonar
@@ -85,7 +95,7 @@ export default function Savings() {
                     setMode('retirar')
                     setOpenContrib(true)
                   }}
-                  className="flex-1 rounded-3xl py-2 text-sm flex items-center justify-center gap-2"
+                  className="flex-1 min-w-0 rounded-3xl py-2 text-xs flex items-center justify-center gap-2 sm:text-sm"
                   style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                 >
                   <ArrowUpCircle size={16} /> Retirar
@@ -95,8 +105,14 @@ export default function Savings() {
           )
         })}
       </div>
-      <NewGoalModal open={openNew} onClose={() => setOpenNew(false)} />
-      <GoalContributionModal open={openContrib} onClose={() => setOpenContrib(false)} goal={selected} mode={mode} />
+      <NewGoalModal open={openNew} onClose={() => setOpenNew(false)} onSaved={fetchGoals} />
+      <GoalContributionModal
+        open={openContrib}
+        onClose={() => setOpenContrib(false)}
+        onSaved={fetchGoals}
+        goal={selected}
+        mode={mode}
+      />
     </Layout>
   )
 }

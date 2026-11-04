@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext'
 import { Navigate } from 'react-router-dom'
 
 export function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
+  const { user, loading, locked } = useAuth()
 
   if (loading) {
     return (
@@ -12,7 +12,7 @@ export function PrivateRoute({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!user) {
+  if (!user || locked) {
     return <Navigate to="/login" replace />
   }
 

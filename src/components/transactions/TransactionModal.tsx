@@ -2,35 +2,62 @@ import { useState } from 'react'
 import { X, Calendar, FileText } from 'lucide-react'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useWallet } from '@/hooks/useTransactions'
-import { useAuth } from '@/context/AuthContext'
-import { supabase } from '@/lib/supabaseClient'
-import * as Icons from 'lucide-react'
+import { formatCurrency, parsePositiveAmount } from '@/utils/currency'
+import { CategoryIcon } from '@/components/CategoryIcon'
+import { useTheme } from '@/context/ThemeContext'
 
 interface TransactionModalProps {
   open: boolean
   onClose: () => void
   defaultType?: 'ingreso' | 'egreso'
+  onSaved?: () => Promise<void> | void
 }
 
-export function TransactionModal({ open, onClose, defaultType = 'egreso' }: TransactionModalProps) {
-  const { user } = useAuth()
-  const { categories, addTransaction, fetchAll } = useTransactions()
-  const { balance, fetchProfile } = useWallet()
+function getLocalDateString() {
+  const today = new Date()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${today.getFullYear()}-${month}-${day}`
+}
+
+export function TransactionModal({ open, onClose, defaultType = 'egreso', onSaved }: TransactionModalProps) {
+  const { categories, addTransaction } = useTransactions()
+  const { balance, profile, loading: profileLoading, error: profileError } = useWallet()
+  const { hideBalances } = useTheme()
   const [type, setType] = useState<'ingreso' | 'egreso'>(defaultType)
   const [amount, setAmount] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [description, setDescription] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [today] = useState(getLocalDateString)
+  const [date, setDate] = useState(getLocalDateString)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!open) return null
 
   const filtered = categories.filter((c) => c.type === type)
 
   const handleSave = async () => {
-    if (!user) return
-    const num = parseFloat(amount.replace(',', '.'))
-    if (isNaN(num) || num <= 0) return
+    const num = parsePositiveAmount(amount)
+    if (num === null) {
+      setError('Ingresa un monto mayor a cero y con máximo dos decimales.')
+      return
+    }
+    if (!date || date > today) {
+      setError('La fecha no puede ser futura.')
+      return
+    }
+    if (type === 'egreso' && (profileLoading || profileError || !profile)) {
+      setError(profileError || 'No se pudo verificar el saldo disponible. Inténtalo nuevamente.')
+      return
+    }
+    if (type === 'egreso' && num > balance) {
+      setError(hideBalances
+        ? 'Saldo insuficiente.'
+        : `Saldo insuficiente. Disponible: ${formatCurrency(balance, profile?.currency_preference)}.`)
+      return
+    }
+    setError(null)
     setLoading(true)
     try {
       await addTransaction({
@@ -40,33 +67,22 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso' }: Tran
         description: description.trim() || null,
         date,
       })
-      if (type === 'ingreso') {
-        await supabase.from('profiles').update({ balance_actual: balance + num }).eq('user_id', user.id)
-      } else {
-        await supabase.from('profiles').update({ balance_actual: balance - num }).eq('user_id', user.id)
-      }
-      await fetchProfile()
-      await fetchAll()
+      await onSaved?.()
       setAmount('')
       setDescription('')
       setCategoryId(null)
       onClose()
     } catch (e) {
-      console.error(e)
+      setError(e instanceof Error ? e.message : 'No se pudo guardar el movimiento.')
     } finally {
       setLoading(false)
     }
   }
 
-  const getIcon = (name: string) => {
-    const Icon = (Icons as any)[name] || Icons.Circle
-    return <Icon size={18} />
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md card-cream rounded-t-4xl sm:rounded-4xl p-5 flex flex-col gap-4 max-h-[92vh] overflow-auto">
+      <div className="relative w-full min-w-0 sm:max-w-md card-cream rounded-t-4xl sm:rounded-4xl p-5 flex flex-col gap-4 max-h-[92vh] overflow-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">Nuevo movimiento</h2>
           <button onClick={onClose} className="rounded-full p-2" style={{ background: 'var(--color-surface)' }}>
@@ -75,16 +91,22 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso' }: Tran
         </div>
         <div className="flex rounded-3xl p-1" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           <button
-            onClick={() => setType('egreso')}
+            onClick={() => {
+              setType('egreso')
+              setCategoryId(null)
+            }}
             className={`flex-1 rounded-3xl py-2 text-sm ${type === 'egreso' ? 'font-semibold' : ''}`}
-            style={{ background: type === 'egreso' ? 'var(--color-accent)' : 'transparent', color: 'var(--color-text)' }}
+            style={{ background: type === 'egreso' ? 'var(--color-primary)' : 'transparent', color: type === 'egreso' ? 'var(--color-primary-foreground)' : 'var(--color-text)' }}
           >
             Gasto
           </button>
           <button
-            onClick={() => setType('ingreso')}
+            onClick={() => {
+              setType('ingreso')
+              setCategoryId(null)
+            }}
             className={`flex-1 rounded-3xl py-2 text-sm ${type === 'ingreso' ? 'font-semibold' : ''}`}
-            style={{ background: type === 'ingreso' ? 'var(--color-primary)' : 'transparent', color: 'var(--color-primary-foreground)' }}
+            style={{ background: type === 'ingreso' ? 'var(--color-primary)' : 'transparent', color: type === 'ingreso' ? 'var(--color-primary-foreground)' : 'var(--color-text)' }}
           >
             Ingreso
           </button>
@@ -92,6 +114,7 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso' }: Tran
         <div className="flex flex-col items-center gap-1">
           <span className="text-sm opacity-80">Monto</span>
           <input
+            type="text"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
@@ -102,31 +125,37 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso' }: Tran
         </div>
         <div className="flex flex-col gap-2">
           <span className="text-sm font-semibold">Categoría</span>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
             {filtered.map((c) => (
               <button
                 key={c.id}
+                type="button"
                 onClick={() => setCategoryId(c.id)}
-                className="flex flex-col items-center gap-1 rounded-3xl p-2"
+                aria-pressed={categoryId === c.id}
+                title={c.name}
                 style={{
-                  background: categoryId === c.id ? c.color_tag + '33' : 'var(--color-surface)',
-                  border: categoryId === c.id ? `1px solid ${c.color_tag}` : '1px solid var(--color-border)',
+                  background: categoryId === c.id ? `${c.color || '#fbbf24'}33` : 'var(--color-surface)',
+                  border: categoryId === c.id ? `1px solid ${c.color || '#fbbf24'}` : '1px solid var(--color-border)',
                 }}
+                className="flex min-w-0 flex-col items-center gap-1 rounded-3xl p-2"
               >
-                <div className="h-9 w-9 rounded-full flex items-center justify-center" style={{ background: c.color_tag + '55', color: 'var(--color-text)' }}>
-                  {getIcon(c.icon)}
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: `${c.color || '#fbbf24'}55`, color: 'var(--color-text)' }}>
+                  <CategoryIcon name={c.icon} categoryName={c.name} />
                 </div>
-                <span className="text-[10px] text-center leading-tight">{c.name}</span>
+                <span className="line-clamp-2 w-full break-all text-center text-[10px] leading-tight">{c.name}</span>
               </button>
             ))}
           </div>
+          {filtered.length === 0 && <p className="text-xs opacity-70">No hay categorías de {type === 'ingreso' ? 'ingresos' : 'gastos'} todavía. Puedes guardar el movimiento sin categoría.</p>}
         </div>
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold flex items-center gap-2">
             <Calendar size={16} /> Fecha
           </label>
           <input
             type="date"
+            max={today}
             value={date}
             onChange={(e) => setDate(e.target.value)}
             className="rounded-3xl px-4 py-2"
@@ -138,6 +167,7 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso' }: Tran
             <FileText size={16} /> Descripción (opcional)
           </label>
           <input
+            maxLength={120}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Agrega una nota"
@@ -149,7 +179,7 @@ export function TransactionModal({ open, onClose, defaultType = 'egreso' }: Tran
           disabled={loading}
           onClick={handleSave}
           className="rounded-3xl py-3 font-semibold"
-          style={{ background: type === 'ingreso' ? 'var(--color-primary)' : 'var(--color-accent)', color: 'var(--color-primary-foreground)' }}
+          style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
         >
           {loading ? 'Guardando...' : 'Guardar movimiento'}
         </button>
