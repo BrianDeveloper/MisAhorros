@@ -44,6 +44,12 @@ Revisa y aplica las migraciones, en orden, primero en un proyecto Supabase de pr
 
 El widget de tasa consulta la API pública de [DolarAPI para Venezuela](https://dolarapi.com/docs/venezuela/) y presenta su cotización marcada como `oficial`. No requiere una función de Supabase ni una clave, y se usa solo para consulta/conversión externa: no modifica saldos, metas ni movimientos. Es un servicio externo de terceros; si deja de responder, el resto de la app sigue funcionando.
 
+## Versión web
+
+La app web se publica desde `main` mediante el workflow **Deploy web app to GitHub Pages** en `https://briandeveloper.github.io/MisAhorros/`. Para compilarla, configura `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en los secretos de GitHub Actions. La clave `anon`/publishable forma parte del cliente web y no es secreta; nunca configures una clave `service_role`. Protege los datos con políticas RLS de Supabase.
+
+La compilación de Pages usa rutas hash (`/#/perfil`) para admitir navegación directa en hosting estático. El sitio requiere conexión a internet y un proyecto Supabase configurado; los datos personales no se almacenan en GitHub Pages.
+
 ## Android
 
 El proyecto incluye la plataforma Android de Capacitor. Después de compilar la app web, sincroniza los recursos con el proyecto nativo usando `npx cap sync android`.

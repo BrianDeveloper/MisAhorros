@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Home from '@/pages/Home'
 import Transactions from '@/pages/Transactions'
 import Savings from '@/pages/Savings'
@@ -10,8 +10,10 @@ import Budgets from '@/pages/Budgets'
 import { PrivateRoute } from '@/components/auth/PrivateRoute'
 
 export function AppRoutes() {
+  const Router = import.meta.env.VITE_USE_HASH_ROUTER === 'true' ? HashRouter : BrowserRouter
+
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
@@ -73,6 +75,6 @@ export function AppRoutes() {
         <Route path="/ajustes" element={<Navigate to="/perfil" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   )
 }
